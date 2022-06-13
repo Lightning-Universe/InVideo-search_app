@@ -1,3 +1,4 @@
+import io
 import math
 from enum import Enum
 from typing import Dict, List
@@ -7,10 +8,12 @@ import cv2
 import torch
 import uvicorn
 from fastapi import BackgroundTasks, FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from lightning import LightningWork
 from PIL import Image
 from pydantic import BaseModel
 from pytube import YouTube, extract
+from starlette.responses import StreamingResponse
 
 
 class VideoSubmission(BaseModel):
@@ -37,10 +40,23 @@ class VideoSearch(BaseModel):
 
 
 app = FastAPI()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 videos: Dict[
     str, Video
-] = {}  # We should be fine for now with in-memory storage... right ?
+] = (
+    {}
+)  # We should be fine for now with in-memory storage... right ? TODO: have inmemory LRU
 storage = {}
+
+
+@app.get("/ping")
+def hello():
+    return "pong"
 
 
 @app.post("/video")
@@ -49,7 +65,6 @@ async def submit_video(
 ) -> Video:
 
     # TODO: do not add if already exists in mapping and in state done
-
     video = Video(
         id=extract.video_id(submission.url),
         url=submission.url,
@@ -60,17 +75,46 @@ async def submit_video(
     return video
 
 
+@app.get("/status/{video_id}")
+def get_video(video_id: str) -> str:
+    return f"HELLO FROM THE SERVER {video_id}"
+
+
+@app.get(
+    "/results/{video_id}/{time_ms}",
+)
+async def get_result_image_at(video_id: str, time_ms: int):
+    video_url = f"https://www.youtube.com/watch?v={video_id}"
+    yt = YouTube(video_url)
+    streams = yt.streams.filter(
+        adaptive=True, subtype="mp4", resolution="360p", only_video=True
+    )
+    capture = cv2.VideoCapture(streams[0].url)
+    capture.set(cv2.CAP_PROP_POS_MSEC, time_ms)
+    ret, frame = capture.read()
+    # Handle strange behaviours when we read nothing.
+    result_image = Image.fromarray(frame[:, :, ::-1])
+    bytes_image = io.BytesIO()
+    result_image.save(bytes_image, format="PNG")
+    bytes_image.seek(0)
+
+    return StreamingResponse(bytes_image, media_type="image/png")
+
+
 @app.get("/video/{video_id}")
 def get_video(video_id: str) -> Video:
     # TODO add search parameter here :D <---
 
     # TODO: error handling here
 
-    return videos[video_id]
+    if video_id in video_id:
+        return videos[video_id]
+    else:
+        return None
 
 
 @app.get("/search/{video_id}")
-def search_video(
+async def search_video(
     video_id: str, search_query: str, results_count: int = 5
 ) -> VideoSearch:
 
@@ -178,4 +222,6 @@ def search_video(video: Video, search_query: str, results_count: int):
 
 class VideoProcessingServer(LightningWork):
     def run(self):
+        print("host", self.host)
+        print("port", self.port)
         uvicorn.run(app, host=self.host, port=self.port)
