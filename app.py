@@ -1,5 +1,7 @@
 import subprocess
 from pathlib import Path
+import os
+
 
 import lightning as L
 from lightning import CloudCompute
@@ -28,7 +30,10 @@ class VideoAppFlow(L.LightningFlow):
         super().__init__()
 
         self.server = VideoProcessingServer(
-            parallel=True, cloud_compute=CloudCompute("cpu-medium")
+            parallel=True,
+            cloud_compute=CloudCompute(
+                os.getenv("LIGHTNING_SERVER_MACHINE", "cpu-medium")
+            ),
         )
         self.ui = ReactUI()
 
@@ -46,6 +51,4 @@ class VideoAppFlow(L.LightningFlow):
         return tab1
 
 
-lightningapp = L.LightningApp(
-    VideoAppFlow(),
-)
+lightningapp = L.LightningApp(VideoAppFlow())

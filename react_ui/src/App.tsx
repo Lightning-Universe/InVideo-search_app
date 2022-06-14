@@ -275,7 +275,7 @@ const App = (props: any) => {
                                   backgroundRepeat: 'no-repeat',
 
                               }}>
-                                <img src={ `${API_URL}/results/${youtubeVideoId}/${e}` }
+                                <img src={ `${API_URL}/thumbnail/${youtubeVideoId}/${e}` }
                                      style={{
                                 }}
                                 />
