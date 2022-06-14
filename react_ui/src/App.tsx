@@ -6,6 +6,7 @@ import Box from "@mui/material/Box";
 import { KeyboardEvent, ChangeEvent } from "react";
 import React, { useState, useEffect } from 'react';
 import cloneDeep from "lodash/cloneDeep";
+import CircularProgress from "@mui/material/CircularProgress";
 
 import "./App.css";
 import { useLightningState } from "./hooks/useLightningState";
@@ -13,40 +14,31 @@ import Background from "./components/background";
 import zIndex from "@mui/material/styles/zIndex";
 import { Dictionary } from "lodash";
 
-const starterPlaceholderMessage = 'Enter a YouTube link';
 const defaultTitle = 'Search inside any (5-minute) video';
 
 const App = (props: any) => {
   const { lightningState, updateLightningState } = useLightningState();
   const [headerTitle, setHeaderTitle] = React.useState(defaultTitle);
-  const [youtubeID, setYoutubeID] = React.useState('');
-  const [videoURL, setVideoURL] = React.useState('');
   const [videoName, setVideoName] = React.useState('');
-  const [inputValue, setInputValue] = React.useState('');
   const [errorMessage, setErrorMessage] = React.useState('');
   const [showError, setShowError] = React.useState(false);
   const [showProgress, setShowProgress] = React.useState(false);
   const [progress, setProgress] = React.useState(0);
-  const [placeHolderText, setPlaceHolderText] = React.useState(starterPlaceholderMessage);
   const [results, setResults] = useState([]);
   const [API_URL, setApiUrl] = useState([]);
-  const [canSearch, setCanSearch] = useState(false);
-  const [videoProcessingState, setVideoProcessingState] = React.useState('');
   const [youtubeVideoId, setYoutubeVideoId] = React.useState('');
   const [appView, setAppView] = React.useState('');
-  const [videoInputValue, setVideoInputValue] = React.useState('');
-  const [searchQueryInputValue, setSearchQueryInputValue] = React.useState('');
+
 
   useEffect(() => {
-    // setResults(lightningState?.works.video_processor.vars.results);
-    // setShowProgress(lightningState?.works.video_processor.vars.show_progress);
-    // setProgress(lightningState?.works.video_processor.vars.progress);
-    setApiUrl(lightningState?.vars.api_server_url);
-    console.log('lightning state:', lightningState);
-    console.log('progress:', progress, 'show:', showProgress);
 
-    const timer = setInterval(doEverySecond, 1000);
-    return () => clearInterval(timer);
+        // Get FastAPI server url (running inside a lightning work) from lightning state :)
+        setApiUrl(lightningState?.vars.api_server_url);
+        console.log('lightning state:', lightningState);
+        console.log('progress:', progress, 'show:', showProgress);
+
+        const timer = setInterval(doEverySecond, 1000);
+        return () => clearInterval(timer);
 
   });
 
@@ -68,13 +60,11 @@ const App = (props: any) => {
           if(response && appView=='server_unavailable'){
             setAppView('')
             setHeaderTitle('')
-              console.log("zzzzzzzzzzzzzzzzzzzzzzzz")
           }
           if (response && !response.ok){
               setAppView("server_unavailable")
               setHeaderTitle('Server is not available, please wait !')
           }
-          console.log("response", response)
 
         }).catch((error) => {
             setAppView("server_unavailable")
@@ -91,24 +81,21 @@ const App = (props: any) => {
   };
 
 
-  const handleTextFieldChange = (e: ChangeEvent<HTMLInputElement>) => {
-    setInputValue((e.target as HTMLInputElement).value)
-  }
-
   const handleDelete = (e: any) => {
-    if (appView=="search_results"){
+      // When user clicks on cancel
+
+    if (appView=="search_results" || appView=="searching"){
       setAppView("search_input")
       setProgress(0);
       setHeaderTitle('')
     }
-    else if (appView=="search_input"){
+    else if (appView=="search_input" || appView=="processing"){
       setAppView("video_input")
       setProgress(0);
       setYoutubeVideoId('')
       setHeaderTitle(defaultTitle)
       setVideoName('')
     }
-
   }
 
   const closeErrorAlert = () => {
@@ -151,17 +138,12 @@ const App = (props: any) => {
         if (matches) {
         setHeaderTitle('⚡ Processing Video ⚡')
 
-        setVideoURL(newUrl);
           setYoutubeVideoId(matches[1])
           getVideoMeta(matches[1], newUrl);
           startVideoProcessingTask(matches[1], newUrl)
-          // set_lightning_state(['works', 'video_processor', 'vars', 'progress'], 0);
-          // set_lightning_state(['works', 'video_processor', 'vars', 'show_progress'], true);
           setProgress(5);
-          // set_lightning_state(['vars', 'video_url'], newUrl);
         } else {
           setShowError(true);
-          setInputValue('');
           setErrorMessage("Invalid YouTube link!\n Valid link example: https://www.youtube.com/watch?v=-c55LCTdD90");
           setTimeout(() => {
             closeErrorAlert()
@@ -179,9 +161,7 @@ const App = (props: any) => {
         return response.json();
       })
       .then(function(myJson) {
-        setYoutubeID(videoID);
         setVideoName(myJson.title);
-        setInputValue('');
         setShowProgress(true);
 
       });
@@ -204,6 +184,13 @@ const App = (props: any) => {
             setAppView("search_input")
             setHeaderTitle('')
           }
+          if(myJson.state == 'error'){
+              setShowError(true);
+              setErrorMessage(myJson.msg);
+              setTimeout(() => {
+                  closeErrorAlert()
+              }, 5000);
+          }
         });
   }
 
@@ -223,12 +210,13 @@ const App = (props: any) => {
           body: JSON.stringify({"url": newUrl})
         })
         .then(function(response) {
-          return response.json();
+            return response.json();
         })
         .then(function(myJson) {
           console.log("api_response", myJson)
         });
   }
+
   return (
     <div className="App">
       <div className="wrapper">
@@ -256,36 +244,35 @@ const App = (props: any) => {
             switch (appView) {
               case 'searching':
               case 'processing':
-                return   <LinearProgress
-                    variant="determinate"
-                    value={progress}
-                    placeholder='Enter a YouTube link'
-                    sx={{
-                      zIndex: 9999,
-                      maxWidth: "calc(100% - 43px)",
-                      width: 400,
-                      height: 6,
-                      margin: "auto",
-                      border: "0.5px solid white",
-                      backgroundColor: "black",
-                      "& .MuiLinearProgress-colorPrimary": {
-                        backgroundColor: "black"
-                      },
-                      "& .MuiLinearProgress-bar": {
-                        backgroundColor: "#792EE5"
-                      }
-                    }}
-                />;
+                  return <CircularProgress />;
+                // return   <LinearProgress
+                //     variant="determinate"
+                //     value={progress}
+                //     placeholder='Enter a YouTube link'
+                //     sx={{
+                //       zIndex: 9999,
+                //       maxWidth: "calc(100% - 43px)",
+                //       width: 400,
+                //       height: 6,
+                //       margin: "auto",
+                //       border: "0.5px solid white",
+                //       backgroundColor: "black",
+                //       "& .MuiLinearProgress-colorPrimary": {
+                //         backgroundColor: "black"
+                //       },
+                //       "& .MuiLinearProgress-bar": {
+                //         backgroundColor: "#792EE5"
+                //       }
+                //     }}
+                // />;
               case '':
               case 'video_input':
                 return <TextField
                     id="input-video-box"
                     size="small"
-                    // value={videoInputValue}
-                    // onChange={handleTextFieldChange}
                     onKeyDownCapture={onVideoProcess}
                     fullWidth
-                    placeholder={placeHolderText}
+                    placeholder='Enter a YouTube link'
                     sx={{
                       display: "contents",
                       "& .MuiOutlinedInput-root": {
@@ -301,8 +288,6 @@ const App = (props: any) => {
                 return <TextField
                     id="search-box"
                     size="small"
-                    // value={searchQueryInputValue}
-                    // onChange={handleTextFieldChange}
                     onKeyDownCapture={onSearch}
                     fullWidth
                     placeholder='Search for things, actions, etc...'

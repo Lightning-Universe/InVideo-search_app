@@ -1,6 +1,7 @@
 import io
 import math
 from enum import Enum
+from functools import lru_cache
 from typing import Dict, List
 
 import clip as openai_clip
@@ -31,6 +32,8 @@ class Video(BaseModel):
     id: str
     url: str
     state: VideoProcessingState
+    progress: int
+    msg: str = ""
 
 
 class VideoSearch(BaseModel):
@@ -69,6 +72,7 @@ async def submit_video(
         id=extract.video_id(submission.url),
         url=submission.url,
         state=VideoProcessingState.Scheduled,
+        progress=0,
     )
 
     background_tasks.add_task(process_video, video)
@@ -107,7 +111,7 @@ def get_video(video_id: str) -> Video:
 
     # TODO: error handling here
 
-    if video_id in video_id:
+    if video_id in videos:
         return videos[video_id]
     else:
         return None
@@ -117,6 +121,7 @@ def get_video(video_id: str) -> Video:
 async def search_video(
     video_id: str, search_query: str, results_count: int = 5
 ) -> VideoSearch:
+    """Search in a video using 'search_query'."""
 
     if videos[video_id].state != VideoProcessingState.Done:
         raise ValueError("Video was not yet processed, please wait")
@@ -140,11 +145,12 @@ def process_video(video: Video):
     )
     length = yt.length
     if length >= 300:
-        raise ValueError(
-            "Please find a YouTube video shorter than 5 minutes."
-            " Sorry about this, the server capacity is limited"
-            " for the time being."
-        )
+        videos[video.id].state = VideoProcessingState.Failure
+        error_msg = "Please find a YouTube video shorter than 5 minutes."
+        " Sorry about this, the server capacity is limited"
+        " for the time being."
+        videos[video.id].msg = error_msg
+        raise ValueError(error_msg)
 
     capture = cv2.VideoCapture(streams[0].url)
     total_frames = int(capture.get(cv2.CAP_PROP_FRAME_COUNT))
@@ -169,6 +175,8 @@ def process_video(video: Video):
     batches = math.ceil(len(frames) / batch_size)
     video_features = torch.empty([0, 512], dtype=torch.float16)
     device = "cuda" if torch.cuda.is_available() else "cpu"
+
+    # Load clip model
     model, preprocess = openai_clip.load("ViT-B/32", device=device)
     for i in range(batches):
         batch_frames = frames[i * batch_size : (i + 1) * batch_size]
@@ -222,6 +230,5 @@ def search_video(video: Video, search_query: str, results_count: int):
 
 class VideoProcessingServer(LightningWork):
     def run(self):
-        print("host", self.host)
-        print("port", self.port)
+
         uvicorn.run(app, host=self.host, port=self.port)
