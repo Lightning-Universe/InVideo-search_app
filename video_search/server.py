@@ -1,4 +1,5 @@
 import io
+import os
 
 from enum import Enum
 from typing import List
@@ -15,6 +16,9 @@ from starlette.responses import StreamingResponse
 
 from .storage import LRUCache
 from . import ml
+
+
+# ------------------ Models ------------------
 
 
 class VideoSubmission(BaseModel):
@@ -41,9 +45,13 @@ class VideoSearchResults(BaseModel):
     results: List[int]
 
 
-videos: LRUCache[VideoProcessingStatus] = LRUCache()
+# ------------------- API -------------------
 
+# We use simple in-memory LRU cache to store information about processed videos
+# This could be simillarly used to access any other database or storage
+videos: LRUCache[VideoProcessingStatus] = LRUCache(capacity=int(os.getenv("LIGHTNING_LRU_CAPACITY", "100")))
 
+# Becuase UI (React) calls server from browser we need to allow it with CORS policies
 app = FastAPI()
 app.add_middleware(
     CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"],
@@ -60,11 +68,10 @@ async def hello():
 async def process_video(
     submission: VideoSubmission, background_tasks: BackgroundTasks
 ) -> VideoProcessingStatus:
-
-    # Extract Video ID
-    video_id = extract.video_id(submission.url)
+    """Submitted video will be processed and later available for search."""
 
     # Return status if video has already been submitted before
+    video_id = extract.video_id(submission.url)
     if video_id in videos:
         return videos.get(video_id)
 
@@ -74,6 +81,7 @@ async def process_video(
     )
     videos.save(video.id, video)
 
+    # Implement on_* hooks to update processing status
     def on_start():
         video.state = VideoProcessingState.Running
 
@@ -84,7 +92,8 @@ async def process_video(
         video.state = VideoProcessingState.Failure
         video.msg = str(error)
 
-    # Processing takes a while, so we schedule it to background task
+    # Processing takes a while, so we schedule it to background task 
+    #   and return control to the user
     background_tasks.add_task(
         ml.process_video,
         video_id=video.id,
@@ -98,6 +107,7 @@ async def process_video(
 
 @app.get("/video/{video_id}")
 def get_video(video_id: str) -> VideoProcessingStatus:
+    """Returns current processing status of a video."""
 
     if video_id in videos:
         return videos.get(video_id)
@@ -124,6 +134,7 @@ async def search_video(
 
 @app.get("/thumbnail/{video_id}/{time_ms}",)
 async def get_image_at(video_id: str, time_ms: int):
+    """Returns a still image from a video at given time."""
 
     video = get_video(video_id)
     yt = YouTube(video.url)
@@ -142,6 +153,7 @@ async def get_image_at(video_id: str, time_ms: int):
     return StreamingResponse(bytes_image, media_type="image/png")
 
 
+# Lightning Work is only responsible for spinning up the FastApi server
 class VideoProcessingServer(LightningWork):
     def run(self):
         uvicorn.run(app, host=self.host, port=self.port)
