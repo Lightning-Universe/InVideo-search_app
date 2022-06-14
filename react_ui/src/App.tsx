@@ -1,6 +1,6 @@
 // App.tsx
 
-import { TextField, Chip, Alert, LinearProgress, Grid } from "@mui/material";
+import {TextField, Chip, Alert, LinearProgress, Grid, Stack, Link} from "@mui/material";
 
 import { KeyboardEvent, ChangeEvent } from "react";
 import React, { useState, useEffect } from 'react';
@@ -9,6 +9,7 @@ import CircularProgress from "@mui/material/CircularProgress";
 import "./App.css";
 import { useLightningState } from "./hooks/useLightningState";
 import Background from "./components/background";
+import ImageLoader from "./components/imageLoading";
 
 
 const defaultTitle = 'Search inside any (5-minute) video';
@@ -24,6 +25,7 @@ const App = (props: any) => {
   const [API_URL, setApiUrl] = useState([]);
   const [youtubeVideoId, setYoutubeVideoId] = React.useState('');
   const [appView, setAppView] = React.useState('');
+  const [imagesLoaded, setImageLoaded] = React.useState(false);
 
 
   useEffect(() => {
@@ -92,9 +94,15 @@ const App = (props: any) => {
     setErrorMessage('');
   }
 
+  const onImagesLoaded = () =>{
+      setImageLoaded(true)
+      setHeaderTitle('')
+      setImageLoaded(true)
+  }
 
   const onSearch = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key == 'Enter') {
+        setImageLoaded(false)
         setAppView("searching")
         let query = (event.target as HTMLInputElement).value;
         console.log("do video search", query)
@@ -108,7 +116,6 @@ const App = (props: any) => {
                 console.log("input_search_query", query, "server_search_query", myJson.search_query, "results", results)
                 setResults(myJson.results)
                 setAppView("search_results")
-                setHeaderTitle('')
             });
     }
   }
@@ -176,7 +183,14 @@ const App = (props: any) => {
         });
   }
 
+    const secondsToHms= (seconds:any) => {
+        let m = Math.floor(seconds % 3600 / 60);
+        let s = Math.floor(seconds % 3600 % 60);
 
+        let mDisplay = m > 0 ? m + (m == 1 ? " minute, " : " minutes, ") : "";
+        let sDisplay = s > 0 ? s + (s == 1 ? " second" : " seconds") : "";
+        return mDisplay + sDisplay;
+    }
 
   const startVideoProcessingTask = (videoID:any, newUrl:any) => {
     console.log("API_URL", API_URL)
@@ -199,8 +213,9 @@ const App = (props: any) => {
   }
 
   return (
-    <div className="App">
-      <div className="wrapper">
+      <Background youtubeID={youtubeVideoId}>
+    <div >
+      <div >
         {showError ?
           <Alert
             onClose={closeErrorAlert}
@@ -213,19 +228,32 @@ const App = (props: any) => {
           <p/>
         }
 
-        <Background youtubeID={youtubeVideoId}/>
+
         <div className="content">
+            <Stack justifyContent={"center"} alignItems={"center"}>
+
           <p 
           style={{
             color: "white",
             marginBottom: "10px"
           }}>{headerTitle}</p>
-
+            </Stack>
           {(() => {
             switch (appView) {
               case 'searching':
               case 'processing':
-                  return <CircularProgress />;
+                  return <Stack justifyContent={"center"} alignItems={"center"}>
+                      <CircularProgress/>
+                  </Stack>
+              case 'search_results':
+                  return !imagesLoaded ?
+                          <Stack justifyContent={"center"} alignItems={"center"}>
+                              <CircularProgress/>
+                          </Stack>
+
+                          :
+                          <></>
+
 
               case '':
               case 'video_input':
@@ -245,7 +273,7 @@ const App = (props: any) => {
                         color: "white"
                       }
                     }}
-                />;
+                />
               case 'search_input':
                 return <TextField
                     id="search-box"
@@ -263,41 +291,13 @@ const App = (props: any) => {
                         color: "white"
                       }
                     }}
-                />;
-              case 'search_results':
-                return    <div>
-                  {results && results.length > 0 ?
-                      <Grid container rowSpacing={1} columnSpacing={{ xs: 20, sm: 1, md: 4 }} style={{overflowY:'scroll', height: 'calc(100% - 190px)', position:'fixed', zIndex: 1, top:160, padding: '0 20px'}}>
-                        {results.map( e =>
-                            <Grid item xs={12} md={4} lg={2}>
-                              <div style={{width: '100%', height: '100%',
-                                  backgroundImage: `url(https://c.tenor.com/hRBZHp-kE0MAAAAM/loading-circle-loading.gif)`,
-                                  backgroundRepeat: 'no-repeat',
-
-                              }}>
-                                <img src={ `${API_URL}/results/${youtubeVideoId}/${e}` }
-                                     style={{
-                                }}
-                                />
-                              </div>
-                            </Grid>
-                        )}
-                      </Grid>
-                      :
-                      <p></p>
-                  } ;
-                </div>;
-              default:
-                return null;
+                />
             }
           })()}
 
-
-
-
           {appView !== '' && appView != 'video_input' ?
-            <Chip 
-              label={videoName} 
+            <Chip
+              label={videoName}
               variant="outlined"
               color="primary"
               onDelete={handleDelete}
@@ -308,7 +308,7 @@ const App = (props: any) => {
                 backgroundColor: "rgba(0, 0, 0, 0.7)",
                 "& .MuiSvgIcon-root": {
                   color: "white"
-                }            
+                }
               }}
             />
           :
@@ -316,9 +316,31 @@ const App = (props: any) => {
           }
 
         </div>
-        
+          {appView !== '' && appView == 'search_results' ?
+          <Stack>
+
+          {results && results.length > 0 ?
+              <>
+
+                  <Grid container justifyContent={"center"} rowSpacing={1} columnSpacing={{ xs: 20, sm: 1, md: 4 }} style={{overflowY:'scroll', height: 'calc(100% - 90px)', position:'fixed', zIndex: 1, top:130, padding: '0 20px'}}>
+                      {results.map( e =>
+                          <Grid item >
+
+                              {imagesLoaded ?
+                              <Link href={`https://www.youtube.com/watch?v=${youtubeVideoId}/&t=${e/1000}s`} target="_blank"> Seen at {secondsToHms(e/1000)}</Link> : <> </>}
+                              <ImageLoader onLoad={onImagesLoaded} imageURL={`${API_URL}/results/${youtubeVideoId}/${e}`}/>
+                          </Grid>
+                      )}
+                  </Grid>
+              </>
+              :
+              <></>
+              }
+          </Stack>: <></>
+          }
       </div>
     </div>
+      </Background>
   );
 }
 
