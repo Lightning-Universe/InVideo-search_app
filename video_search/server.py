@@ -32,7 +32,6 @@ class Video(BaseModel):
     id: str
     url: str
     state: VideoProcessingState
-    progress: int
     msg: str = ""
 
 
@@ -72,16 +71,10 @@ async def submit_video(
         id=extract.video_id(submission.url),
         url=submission.url,
         state=VideoProcessingState.Scheduled,
-        progress=0,
     )
 
     background_tasks.add_task(process_video, video)
     return video
-
-
-@app.get("/status/{video_id}")
-def get_video(video_id: str) -> str:
-    return f"HELLO FROM THE SERVER {video_id}"
 
 
 @app.get(

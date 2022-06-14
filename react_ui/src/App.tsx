@@ -2,17 +2,14 @@
 
 import { TextField, Chip, Alert, LinearProgress, Grid } from "@mui/material";
 
-import Box from "@mui/material/Box";
 import { KeyboardEvent, ChangeEvent } from "react";
 import React, { useState, useEffect } from 'react';
-import cloneDeep from "lodash/cloneDeep";
 import CircularProgress from "@mui/material/CircularProgress";
 
 import "./App.css";
 import { useLightningState } from "./hooks/useLightningState";
 import Background from "./components/background";
-import zIndex from "@mui/material/styles/zIndex";
-import { Dictionary } from "lodash";
+
 
 const defaultTitle = 'Search inside any (5-minute) video';
 
@@ -23,7 +20,6 @@ const App = (props: any) => {
   const [errorMessage, setErrorMessage] = React.useState('');
   const [showError, setShowError] = React.useState(false);
   const [showProgress, setShowProgress] = React.useState(false);
-  const [progress, setProgress] = React.useState(0);
   const [results, setResults] = useState([]);
   const [API_URL, setApiUrl] = useState([]);
   const [youtubeVideoId, setYoutubeVideoId] = React.useState('');
@@ -34,8 +30,6 @@ const App = (props: any) => {
 
         // Get FastAPI server url (running inside a lightning work) from lightning state :)
         setApiUrl(lightningState?.vars.api_server_url);
-        console.log('lightning state:', lightningState);
-        console.log('progress:', progress, 'show:', showProgress);
 
         const timer = setInterval(doEverySecond, 1000);
         return () => clearInterval(timer);
@@ -43,7 +37,6 @@ const App = (props: any) => {
   });
 
   const doEverySecond = async () => {
-    console.log("trigger every second", "appView", appView, "youtubeVideoId", youtubeVideoId)
     const request_route = `${API_URL}/ping`;
 
     // check if the server is available
@@ -75,9 +68,7 @@ const App = (props: any) => {
     if (appView =='processing') {
       getVideoProcessingStatus(youtubeVideoId)
     }
-    if (appView=='searching'){
-        setProgress(progress+5);
-    }
+
   };
 
 
@@ -86,12 +77,10 @@ const App = (props: any) => {
 
     if (appView=="search_results" || appView=="searching"){
       setAppView("search_input")
-      setProgress(0);
       setHeaderTitle('')
     }
     else if (appView=="search_input" || appView=="processing"){
       setAppView("video_input")
-      setProgress(0);
       setYoutubeVideoId('')
       setHeaderTitle(defaultTitle)
       setVideoName('')
@@ -111,13 +100,11 @@ const App = (props: any) => {
         console.log("do video search", query)
         setHeaderTitle('⚡ Searching in video ⚡')
         const request_route = `${API_URL}/search/${youtubeVideoId}?search_query=${query}&results_count=5`;
-        setProgress(10);  // TODO: having better in progress status maybe a spinner instead of progressbar.
         fetch(request_route)
             .then(function(response) {
               return response.json();
             })
             .then(function(myJson) {
-                setProgress(0);
                 console.log("input_search_query", query, "server_search_query", myJson.search_query, "results", results)
                 setResults(myJson.results)
                 setAppView("search_results")
@@ -129,7 +116,7 @@ const App = (props: any) => {
 
   const onVideoProcess = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key == 'Enter') {
-      let newUrl = (event.target as HTMLInputElement).value || "https://www.youtube.com/watch?v=sxaTnm_4YMY"
+      let newUrl = (event.target as HTMLInputElement).value || "https://www.youtube.com/watch?v=aWzlQ2N6qqg"
       console.log("do video process", newUrl)
 
       if (newUrl !== null) {
@@ -141,10 +128,9 @@ const App = (props: any) => {
           setYoutubeVideoId(matches[1])
           getVideoMeta(matches[1], newUrl);
           startVideoProcessingTask(matches[1], newUrl)
-          setProgress(5);
         } else {
           setShowError(true);
-          setErrorMessage("Invalid YouTube link!\n Valid link example: https://www.youtube.com/watch?v=-c55LCTdD90");
+          setErrorMessage("Invalid YouTube link!\n Valid link example: https://www.youtube.com/watch?v=aWzlQ2N6qqg");
           setTimeout(() => {
             closeErrorAlert()
           }, 5000);
@@ -175,18 +161,14 @@ const App = (props: any) => {
           return response.json();
         })
         .then(function(myJson) {
-          console.log("video_status_response", myJson)
-          if(myJson.state == 'running'){
-            setProgress(progress+3);  // TODO: having better in progress status maybe a loading icon instead of progressbar.
-          }
           if(myJson.state == 'done'){
-            setProgress(99);
             setAppView("search_input")
             setHeaderTitle('')
           }
           if(myJson.state == 'error'){
               setShowError(true);
               setErrorMessage(myJson.msg);
+              setAppView("video_input")
               setTimeout(() => {
                   closeErrorAlert()
               }, 5000);
@@ -200,7 +182,6 @@ const App = (props: any) => {
     console.log("API_URL", API_URL)
     const request_route = `${API_URL}/video/`;
     setAppView("processing")
-    console.log("app_view", appView)
     fetch(request_route, {
           method: 'POST',
           headers: {
@@ -245,26 +226,7 @@ const App = (props: any) => {
               case 'searching':
               case 'processing':
                   return <CircularProgress />;
-                // return   <LinearProgress
-                //     variant="determinate"
-                //     value={progress}
-                //     placeholder='Enter a YouTube link'
-                //     sx={{
-                //       zIndex: 9999,
-                //       maxWidth: "calc(100% - 43px)",
-                //       width: 400,
-                //       height: 6,
-                //       margin: "auto",
-                //       border: "0.5px solid white",
-                //       backgroundColor: "black",
-                //       "& .MuiLinearProgress-colorPrimary": {
-                //         backgroundColor: "black"
-                //       },
-                //       "& .MuiLinearProgress-bar": {
-                //         backgroundColor: "#792EE5"
-                //       }
-                //     }}
-                // />;
+
               case '':
               case 'video_input':
                 return <TextField
