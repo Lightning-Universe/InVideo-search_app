@@ -100,7 +100,6 @@ async def process_video(
 def get_video(video_id: str) -> VideoProcessingStatus:
 
     if video_id in videos:
-        print(videos.get(video_id))
         return videos.get(video_id)
 
     raise HTTPException(status_code=404, detail="Video not found")
