@@ -2,13 +2,13 @@ import os
 import subprocess
 from pathlib import Path
 
-import lightning as L
-from lightning import CloudCompute
+from lightning.app import LightningApp, LightningFlow, CloudCompute
+from lightning.app.frontend import StaticWebFrontend
 
 from video_search.server import VideoProcessingServer
 
 
-class ReactUI(L.LightningFlow):
+class ReactUI(LightningFlow):
     def __init__(self):
         super().__init__()
         self.server_url = ""
@@ -19,10 +19,10 @@ class ReactUI(L.LightningFlow):
         )  # TODO: run build
 
     def configure_layout(self):
-        return L.frontend.StaticWebFrontend(Path(__file__).parent / "react_ui/dist")
+        return StaticWebFrontend(Path(__file__).parent / "react_ui/dist")
 
 
-class VideoAppFlow(L.LightningFlow):
+class VideoAppFlow(LightningFlow):
     """Main Flow of app, starts backend processing server (LightningWork) and frontend ui (LightningFlow)"""
 
     def __init__(self):
@@ -50,4 +50,4 @@ class VideoAppFlow(L.LightningFlow):
         return tab1
 
 
-lightningapp = L.LightningApp(VideoAppFlow())
+lightningapp = LightningApp(VideoAppFlow())
