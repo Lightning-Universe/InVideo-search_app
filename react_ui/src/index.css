@@ -12,3 +12,7 @@ code {
   font-family: source-code-pro, Menlo, Monaco, Consolas, "Courier New",
     monospace;
 }
+
+loadingimg {
+  background: transparent url(https://powerusers.microsoft.com/t5/image/serverpage/image-id/118082i204C32E01666789C) no-repeat scroll center center;
+}

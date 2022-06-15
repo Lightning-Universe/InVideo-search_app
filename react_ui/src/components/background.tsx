@@ -8,10 +8,11 @@ const Background = (props: any) => {
             style={{
                 backgroundImage: `url(https://img.youtube.com/vi/${props.youtubeID}/mqdefault.jpg)`,
                 backgroundColor: "black"
-            }}/>
+            }}></div>
         :  
-            <div className="empty-background-image" style={{backgroundColor: "black"}}/>
+            <div className="empty-background-image" style={{backgroundColor: "black"}}></div>
         }
+            {props.children}
         </div>
     );
 }

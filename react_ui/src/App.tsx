@@ -1,84 +1,92 @@
 // App.tsx
 
-import { TextField, Chip, Alert, LinearProgress, Grid } from "@mui/material";
+import {TextField, Chip, Alert, LinearProgress, Grid, Stack, Link} from "@mui/material";
 
-import Box from "@mui/material/Box";
 import { KeyboardEvent, ChangeEvent } from "react";
 import React, { useState, useEffect } from 'react';
-import cloneDeep from "lodash/cloneDeep";
+import CircularProgress from "@mui/material/CircularProgress";
 
 import "./App.css";
 import { useLightningState } from "./hooks/useLightningState";
 import Background from "./components/background";
-import zIndex from "@mui/material/styles/zIndex";
-import { Dictionary } from "lodash";
+import ImageLoader from "./components/imageLoading";
 
-const starterPlaceholderMessage = 'Enter a YouTube link';
+
 const defaultTitle = 'Search inside any (5-minute) video';
 
 const App = (props: any) => {
   const { lightningState, updateLightningState } = useLightningState();
   const [headerTitle, setHeaderTitle] = React.useState(defaultTitle);
-  const [youtubeID, setYoutubeID] = React.useState('');
-  const [videoURL, setVideoURL] = React.useState('');
   const [videoName, setVideoName] = React.useState('');
-  const [inputValue, setInputValue] = React.useState('');
   const [errorMessage, setErrorMessage] = React.useState('');
   const [showError, setShowError] = React.useState(false);
   const [showProgress, setShowProgress] = React.useState(false);
-  const [progress, setProgress] = React.useState(0);
-  const [placeHolderText, setPlaceHolderText] = React.useState(starterPlaceholderMessage);
   const [results, setResults] = useState([]);
+  const [API_URL, setApiUrl] = useState([]);
+  const [youtubeVideoId, setYoutubeVideoId] = React.useState('');
+  const [appView, setAppView] = React.useState('');
+  const [imagesLoaded, setImageLoaded] = React.useState(false);
 
 
   useEffect(() => {
-    setResults(lightningState?.works.video_processor.vars.results);
-    setShowProgress(lightningState?.works.video_processor.vars.show_progress);
-    setProgress(lightningState?.works.video_processor.vars.progress);
-    console.log('progress:', progress, 'show:', showProgress);
-    if (!showProgress && progress >= 99) {
-      setHeaderTitle(defaultTitle);
-    }
-    if (showProgress) {
-      setHeaderTitle('⚡ processing video ⚡');
-    }
 
-    if (!showProgress && progress == 0) {
-      setHeaderTitle(defaultTitle);
-    }
+        // Get FastAPI server url (running inside a lightning work) from lightning state :)
+        setApiUrl(lightningState?.vars.api_server_url);
+
+        const timer = setInterval(doEverySecond, 1000);
+        return () => clearInterval(timer);
 
   });
 
-  const set_lightning_state = (key_chain: string[], value: any) => {
-    if (lightningState) {
-      const newLightningState = cloneDeep(lightningState);
-      
-      let obj = (newLightningState as Dictionary<any>);
-      for (const [i, val] of key_chain.entries()) {
-        if (i === (key_chain.length - 1)) {
-          obj[val] = value
-        }else {
-          obj = obj[val]
-        }
-      }
-      console.log(lightningState);
-      console.log(newLightningState);
-      updateLightningState(newLightningState);
-    }
-  }
+  const doEverySecond = async () => {
+    const request_route = `${API_URL}/ping`;
 
-  const handleTextFieldChange = (e: ChangeEvent<HTMLInputElement>) => {
-    setInputValue((e.target as HTMLInputElement).value)
-  }
+    // check if the server is available
+    fetch(request_route)
+        .then(function(response) {
+          return response;
+        }).catch((error) => {
+              setAppView("server_unavailable")
+              setHeaderTitle('Server is not available, please wait !')
+              console.log("error", error)
+
+        })
+        .then(function(response) {
+          if(response && appView=='server_unavailable'){
+            setAppView('')
+            setHeaderTitle('')
+          }
+          if (response && !response.ok){
+              setAppView("server_unavailable")
+              setHeaderTitle('Server is not available, please wait !')
+          }
+
+        }).catch((error) => {
+            setAppView("server_unavailable")
+            setHeaderTitle('Server is not available, please wait !')
+            console.log("error", error)
+          });
+
+    if (appView =='processing') {
+      getVideoProcessingStatus(youtubeVideoId)
+    }
+
+  };
+
 
   const handleDelete = (e: any) => {
-    setYoutubeID('');
-    setVideoURL('');
-    setInputValue('');
-    setHeaderTitle(defaultTitle);
-    setPlaceHolderText(starterPlaceholderMessage);
-    set_lightning_state(['vars', 'cancel_download'], true);
-    set_lightning_state(['works', 'video_processor', 'vars', 'progress'], 0);
+      // When user clicks on cancel
+
+    if (appView=="search_results" || appView=="searching"){
+      setAppView("search_input")
+      setHeaderTitle('')
+    }
+    else if (appView=="search_input" || appView=="processing"){
+      setAppView("video_input")
+      setYoutubeVideoId('')
+      setHeaderTitle(defaultTitle)
+      setVideoName('')
+    }
   }
 
   const closeErrorAlert = () => {
@@ -86,39 +94,58 @@ const App = (props: any) => {
     setErrorMessage('');
   }
 
-  const onEnter = (event: KeyboardEvent<HTMLInputElement>) => {
+  const onImagesLoaded = () =>{
+      setImageLoaded(true)
+      setHeaderTitle('')
+      setImageLoaded(true)
+  }
+
+  const onSearch = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key == 'Enter') {
-      const contentVideoExists = videoURL.length > 2;
-      if (contentVideoExists) {
-        // SEARCH WITHIN VIDEO
+        setImageLoaded(false)
+        setAppView("searching")
         let query = (event.target as HTMLInputElement).value;
-        set_lightning_state(['vars', 'search_query'], query);
-        setInputValue('');
-        
-      }else {
-        let newUrl = (event.target as HTMLInputElement).value;
-        if (newUrl !== null) {
-          var regEx = "^(?:https?:)?//[^/]*(?:youtube(?:-nocookie)?\.com|youtu\.be).*[=/]([-\\w]{11})(?:\\?|=|&|$)";
-          var matches = newUrl.match(regEx);
-          if (matches) {
-            setVideoURL(newUrl);
-            getVideoMeta(matches[1], newUrl);
-            set_lightning_state(['works', 'video_processor', 'vars', 'progress'], 0);
-            set_lightning_state(['works', 'video_processor', 'vars', 'show_progress'], true);
-            setProgress(0);
-            set_lightning_state(['vars', 'video_url'], newUrl);
-          } else {
-            setShowError(true);
-            setInputValue('');
-            setErrorMessage("Invalid YouTube link!\n Valid link example: https://www.youtube.com/watch?v=-c55LCTdD90");
-            setTimeout(() => {
-              closeErrorAlert()
-            }, 5000);
-          }
+        console.log("do video search", query)
+        setHeaderTitle('⚡ Searching in video ⚡')
+        const request_route = `${API_URL}/search/${youtubeVideoId}?search_query=${query}&results_count=5`;
+        fetch(request_route)
+            .then(function(response) {
+              return response.json();
+            })
+            .then(function(myJson) {
+                console.log("input_search_query", query, "server_search_query", myJson.search_query, "results", results)
+                setResults(myJson.results)
+                setAppView("search_results")
+            });
+    }
+  }
+
+
+  const onVideoProcess = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key == 'Enter') {
+      let newUrl = (event.target as HTMLInputElement).value || "https://www.youtube.com/watch?v=aWzlQ2N6qqg"
+      console.log("do video process", newUrl)
+
+      if (newUrl !== null) {
+        var regEx = "^(?:https?:)?//[^/]*(?:youtube(?:-nocookie)?\.com|youtu\.be).*[=/]([-\\w]{11})(?:\\?|=|&|$)";
+        var matches = newUrl.match(regEx);
+        if (matches) {
+        setHeaderTitle('⚡ Processing Video ⚡')
+
+          setYoutubeVideoId(matches[1])
+          getVideoMeta(matches[1], newUrl);
+          startVideoProcessingTask(matches[1], newUrl)
+        } else {
+          setShowError(true);
+          setErrorMessage("Invalid YouTube link!\n Valid link example: https://www.youtube.com/watch?v=aWzlQ2N6qqg");
+          setTimeout(() => {
+            closeErrorAlert()
+          }, 5000);
         }
       }
     }
   }
+
 
   const getVideoMeta = (videoID:any, videoUrl: String) => {
     const queryUrl = `https://www.youtube.com/oembed?url=${videoUrl}&format=json`;
@@ -127,18 +154,68 @@ const App = (props: any) => {
         return response.json();
       })
       .then(function(myJson) {
-        setYoutubeID(videoID);
         setVideoName(myJson.title);
-        setInputValue('');
         setShowProgress(true);
-        set_lightning_state(['works', 'video_processor', 'vars', 'show_progress'], true);
-        setPlaceHolderText('Search for things, actions, etc...');
+
       });
   }
 
+
+  const getVideoProcessingStatus = (videoID:any) => {
+    const request_route = `${API_URL}/video/${videoID}`;
+    fetch(request_route, )
+        .then(function(response) {
+          return response.json();
+        })
+        .then(function(myJson) {
+          if(myJson.state == 'done'){
+            setAppView("search_input")
+            setHeaderTitle('')
+          }
+          if(myJson.state == 'error'){
+              setShowError(true);
+              setErrorMessage(myJson.msg);
+              setAppView("video_input")
+              setTimeout(() => {
+                  closeErrorAlert()
+              }, 5000);
+          }
+        });
+  }
+
+    const secondsToHms= (seconds:any) => {
+        let m = Math.floor(seconds % 3600 / 60);
+        let s = Math.floor(seconds % 3600 % 60);
+
+        let mDisplay = m > 0 ? m + (m == 1 ? " minute, " : " minutes, ") : "";
+        let sDisplay = s > 0 ? s + (s == 1 ? " second" : " seconds") : "";
+        return mDisplay + sDisplay;
+    }
+
+  const startVideoProcessingTask = (videoID:any, newUrl:any) => {
+    console.log("API_URL", API_URL)
+    const request_route = `${API_URL}/video/`;
+    setAppView("processing")
+    fetch(request_route, {
+          method: 'POST',
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({"url": newUrl})
+        })
+        .then(function(response) {
+            return response.json();
+        })
+        .then(function(myJson) {
+          console.log("api_response", myJson)
+        });
+  }
+
   return (
-    <div className="App">
-      <div className="wrapper">
+      <Background youtubeID={youtubeVideoId}>
+    <div >
+      <div >
         {showError ?
           <Alert
             onClose={closeErrorAlert}
@@ -151,58 +228,76 @@ const App = (props: any) => {
           <p/>
         }
 
-        <Background youtubeID={youtubeID}/>
+
         <div className="content">
+            <Stack justifyContent={"center"} alignItems={"center"}>
+
           <p 
           style={{
             color: "white",
             marginBottom: "10px"
           }}>{headerTitle}</p>
-          
-          {showProgress ? 
-            <LinearProgress 
-            variant="determinate" 
-            value={progress} 
-            sx={{
-              zIndex: 9999, 
-              maxWidth: "calc(100% - 43px)",
-              width: 400,
-              height: 6, 
-              margin: "auto",
-              border: "0.5px solid white",
-              backgroundColor: "black",
-              "& .MuiLinearProgress-colorPrimary": {
-                backgroundColor: "black"
-              },
-              "& .MuiLinearProgress-bar": {
-                backgroundColor: "#792EE5"
-              }
-          }}
-            />
-          :
-            <TextField
-              size="small"
-              value={inputValue}
-              onChange={handleTextFieldChange}
-              onKeyDownCapture={onEnter}
-              fullWidth
-              placeholder={placeHolderText}
-              sx={{
-                display: "contents",
-                "& .MuiOutlinedInput-root": {
-                  backgroundColor: "rgba(109, 109, 110, 0.7)",
-                  color: "white"
-                },
-                "& .MuiFormHelperText-root": {
-                  color: "white"
-                }            
-              }}
-            />
-          }
+            </Stack>
+          {(() => {
+            switch (appView) {
+              case 'searching':
+              case 'processing':
+                  return <Stack justifyContent={"center"} alignItems={"center"}>
+                      <CircularProgress/>
+                  </Stack>
+              case 'search_results':
+                  return !imagesLoaded ?
+                          <Stack justifyContent={"center"} alignItems={"center"}>
+                              <CircularProgress/>
+                          </Stack>
 
-          {youtubeID !== null && youtubeID.length > 2 ? 
-            <Chip 
-              label={videoName} 
+                          :
+                          <></>
+
+
+              case '':
+              case 'video_input':
+                return <TextField
+                    id="input-video-box"
+                    size="small"
+                    onKeyDownCapture={onVideoProcess}
+                    fullWidth
+                    placeholder='Enter a YouTube link'
+                    sx={{
+                      display: "contents",
+                      "& .MuiOutlinedInput-root": {
+                        backgroundColor: "rgba(109, 109, 110, 0.7)",
+                        color: "white"
+                      },
+                      "& .MuiFormHelperText-root": {
+                        color: "white"
+                      }
+                    }}
+                />
+              case 'search_input':
+                return <TextField
+                    id="search-box"
+                    size="small"
+                    onKeyDownCapture={onSearch}
+                    fullWidth
+                    placeholder='Search for things, actions, etc...'
+                    sx={{
+                      display: "contents",
+                      "& .MuiOutlinedInput-root": {
+                        backgroundColor: "rgba(109, 109, 110, 0.7)",
+                        color: "white"
+                      },
+                      "& .MuiFormHelperText-root": {
+                        color: "white"
+                      }
+                    }}
+                />
+            }
+          })()}
+
+          {appView !== '' && appView != 'video_input' ?
+            <Chip
+              label={videoName}
               variant="outlined"
               color="primary"
               onDelete={handleDelete}
@@ -213,7 +308,7 @@ const App = (props: any) => {
                 backgroundColor: "rgba(0, 0, 0, 0.7)",
                 "& .MuiSvgIcon-root": {
                   color: "white"
-                }            
+                }
               }}
             />
           :
@@ -221,25 +316,31 @@ const App = (props: any) => {
           }
 
         </div>
+          {appView !== '' && appView == 'search_results' ?
+          <Stack>
+
           {results && results.length > 0 ?
-            <Grid container rowSpacing={1} columnSpacing={{ xs: 12, sm: 4, md: 4 }} style={{overflowY:'scroll', height: 'calc(100% - 190px)', position:'fixed', zIndex: 1, top:160, padding: '0 20px'}}>
-              {results.map( e =>
-              <Grid item xs={12} md={4} lg={3}>
-                <div style={{width: '100%', height: '100%'}}>
-                  <iframe 
-                    style={{width: '100%', height: '100%', border: 'none'}} 
-                    src={e}>
-                  </iframe>
-                </div>
-              </Grid>
-              )}
-            </Grid>
-            :
-            <p></p>
-          } 
-        
+              <>
+
+                  <Grid container justifyContent={"center"} rowSpacing={1} columnSpacing={{ xs: 20, sm: 1, md: 4 }} style={{overflowY:'scroll', height: 'calc(100% - 90px)', position:'fixed', zIndex: 1, top:130, padding: '0 20px'}}>
+                      {results.map( e =>
+                          <Grid item >
+
+                              {imagesLoaded ?
+                              <Link href={`https://www.youtube.com/watch?v=${youtubeVideoId}/&t=${e/1000}s`} target="_blank"> Seen at {secondsToHms(e/1000)}</Link> : <> </>}
+                              <ImageLoader onLoad={onImagesLoaded} imageURL={`${API_URL}/thumbnail/${youtubeVideoId}/${e}`}/>
+                          </Grid>
+                      )}
+                  </Grid>
+              </>
+              :
+              <></>
+              }
+          </Stack>: <></>
+          }
       </div>
     </div>
+      </Background>
   );
 }
 

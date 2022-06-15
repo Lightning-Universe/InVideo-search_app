@@ -38,8 +38,24 @@ pip install -r requirements.txt
 pip install -e .
 
 ## To run the app locally
-lightning run app app.py
+python -m lightning run app app.py
 
 ## To run the app on the cloud to share it with your peers and users
-lightning run app app.py --cloud
+python -m lightning run app app.py --cloud
 ```
+
+## About this Lightning App
+This Lightning App enables to search through the YouTube videos. 
+Just provide a url and wait for the processing to finish, now you can search for anything You want in it.
+This application is fairly simple already showcases the following features of Lightning Framework:
+ - Multi-tenant Frontend & Backend application architecture
+ - UI written in React
+ - Backend serving REST API (with FastAPI + in-memory database)
+ - Environment variables to parametrize execution environment
+
+### Structure
+Application consists of the following files:
+ - `app.py` - Definition of Lightning App main architecture.
+ - `video_search/server.py` - Backend service (FastAPI) running in Lightning Work.
+ - `video_search/storage.py` - Simple in-memory storage for our application.
+ - `video_search/ml.py` - Dedicated (and independent) ML module for processing and searching the videos.

@@ -1,16 +1,24 @@
-import math
-from enum import Enum
-from typing import Dict, List
+import io
+import os
 
-import clip as openai_clip
+from enum import Enum
+from typing import List
+
 import cv2
-import torch
 import uvicorn
-from fastapi import BackgroundTasks, FastAPI
+from fastapi import BackgroundTasks, FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from lightning import LightningWork
 from PIL import Image
 from pydantic import BaseModel
 from pytube import YouTube, extract
+from starlette.responses import StreamingResponse
+
+from .storage import LRUCache
+from . import ml
+
+
+# ------------------ Models ------------------
 
 
 class VideoSubmission(BaseModel):
@@ -24,158 +32,128 @@ class VideoProcessingState(Enum):
     Failure = "error"
 
 
-class Video(BaseModel):
+class VideoProcessingStatus(BaseModel):
     id: str
     url: str
     state: VideoProcessingState
+    msg: str = ""
 
 
-class VideoSearch(BaseModel):
+class VideoSearchResults(BaseModel):
     id: str
     search_query: str
     results: List[int]
 
 
+# ------------------- API -------------------
+
+# We use simple in-memory LRU cache to store information about processed videos
+# This could be simillarly used to access any other database or storage
+videos: LRUCache[VideoProcessingStatus] = LRUCache(capacity=int(os.getenv("LIGHTNING_LRU_CAPACITY", "100")))
+
+# Becuase UI (React) calls server from browser we need to allow it with CORS policies
 app = FastAPI()
-videos: Dict[
-    str, Video
-] = {}  # We should be fine for now with in-memory storage... right ?
-storage = {}
+app.add_middleware(
+    CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"],
+)
+
+
+# We use this endpoint to check if the server is available.
+@app.get("/ping")
+async def hello():
+    return "pong"
 
 
 @app.post("/video")
-async def submit_video(
+async def process_video(
     submission: VideoSubmission, background_tasks: BackgroundTasks
-) -> Video:
+) -> VideoProcessingStatus:
+    """Submitted video will be processed and later available for search."""
 
-    # TODO: do not add if already exists in mapping and in state done
+    # Return status if video has already been submitted before
+    video_id = extract.video_id(submission.url)
+    if video_id in videos:
+        return videos.get(video_id)
 
-    video = Video(
-        id=extract.video_id(submission.url),
-        url=submission.url,
-        state=VideoProcessingState.Scheduled,
+    # Create and save new Video entry
+    video = VideoProcessingStatus(
+        id=video_id, url=submission.url, state=VideoProcessingState.Scheduled,
     )
+    videos.save(video.id, video)
 
-    background_tasks.add_task(process_video, video)
+    # Implement on_* hooks to update processing status
+    def on_start():
+        video.state = VideoProcessingState.Running
+
+    def on_end():
+        video.state = VideoProcessingState.Done
+
+    def on_error(error):
+        video.state = VideoProcessingState.Failure
+        video.msg = str(error)
+
+    # Processing takes a while, so we schedule it to background task 
+    #   and return control to the user
+    background_tasks.add_task(
+        ml.process_video,
+        video_id=video.id,
+        video_url=video.url,
+        on_start=on_start,
+        on_end=on_end,
+        on_error=on_error,
+    )
     return video
 
 
 @app.get("/video/{video_id}")
-def get_video(video_id: str) -> Video:
-    # TODO add search parameter here :D <---
+def get_video(video_id: str) -> VideoProcessingStatus:
+    """Returns current processing status of a video."""
 
-    # TODO: error handling here
+    if video_id in videos:
+        return videos.get(video_id)
 
-    return videos[video_id]
+    raise HTTPException(status_code=404, detail="Video not found")
 
 
 @app.get("/search/{video_id}")
-def search_video(
+async def search_video(
     video_id: str, search_query: str, results_count: int = 5
-) -> VideoSearch:
+) -> VideoSearchResults:
+    """Search in a video using 'search_query'."""
 
-    if videos[video_id].state != VideoProcessingState.Done:
+    # Assert that video processing finished
+    status = get_video(video_id)
+    if status.state != VideoProcessingState.Done:
         raise ValueError("Video was not yet processed, please wait")
 
-    results = search_video(videos[video_id], search_query, results_count)
-    return VideoSearch(id=video_id, search_query=search_query, results=results)
+    # Make search
+    results = ml.search_video(video_id, search_query, results_count)
+
+    return VideoSearchResults(id=video_id, search_query=search_query, results=results)
 
 
-def process_video(video: Video):
-    # I have no idea what this ML code does ... <3 hope it's OK
+@app.get("/thumbnail/{video_id}/{time_ms}",)
+async def get_image_at(video_id: str, time_ms: int):
+    """Returns a still image from a video at given time."""
 
-    print("Video starting ", VideoProcessingState.Running)
-
-    videos[video.id] = video
-    videos[video.id].state = VideoProcessingState.Running
-
+    video = get_video(video_id)
     yt = YouTube(video.url)
-
     streams = yt.streams.filter(
         adaptive=True, subtype="mp4", resolution="360p", only_video=True
     )
-    length = yt.length
-    if length >= 300:
-        raise ValueError(
-            "Please find a YouTube video shorter than 5 minutes."
-            " Sorry about this, the server capacity is limited"
-            " for the time being."
-        )
-
     capture = cv2.VideoCapture(streams[0].url)
-    total_frames = int(capture.get(cv2.CAP_PROP_FRAME_COUNT))
-    fps = capture.get(cv2.CAP_PROP_FPS)
-    current_frame = 0
-    frames = []
-    SKIP = 30
-    while capture.isOpened():
-        ret, frame = capture.read()
-        if ret:
-            frames.append(Image.fromarray(frame[:, :, ::-1]))
-        else:
-            break
-        if current_frame + SKIP >= total_frames:
-            # fix it
-            current_frame = total_frames
-            break
-        current_frame += SKIP
-        capture.set(cv2.CAP_PROP_POS_FRAMES, current_frame)
+    capture.set(cv2.CAP_PROP_POS_MSEC, time_ms)
+    ret, frame = capture.read()
+    # Handle strange behaviours when we read nothing.
+    result_image = Image.fromarray(frame[:, :, ::-1])
+    bytes_image = io.BytesIO()
+    result_image.save(bytes_image, format="PNG")
+    bytes_image.seek(0)
 
-    batch_size = 256
-    batches = math.ceil(len(frames) / batch_size)
-    video_features = torch.empty([0, 512], dtype=torch.float16)
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    model, preprocess = openai_clip.load("ViT-B/32", device=device)
-    for i in range(batches):
-        batch_frames = frames[i * batch_size : (i + 1) * batch_size]
-        batch_preprocessed = torch.stack([preprocess(frame) for frame in batch_frames])
-        with torch.no_grad():
-            batch_features = model.encode_image(batch_preprocessed)
-            batch_features /= batch_features.norm(dim=-1, keepdim=True)
-        video_features = torch.cat((video_features, batch_features))
-
-    # Save video features for future use in search
-    storage[video.id] = {
-        "video_features": video_features,
-        "skip_frames": SKIP,
-        "fps": fps,
-    }
-
-    # Mark as DONE
-    videos[video.id].state = VideoProcessingState.Done
-
-    print("Video done ", VideoProcessingState.Done)
+    return StreamingResponse(bytes_image, media_type="image/png")
 
 
-def search_video(video: Video, search_query: str, results_count: int):
-
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    model, preprocess = openai_clip.load("ViT-B/32", device=device)
-
-    # Load from storage (here: process memory) could be db in future or something :D
-    video_features = storage[video.id]["video_features"]
-
-    with torch.no_grad():
-        text_features = model.encode_text(openai_clip.tokenize(search_query).to(device))
-        text_features /= text_features.norm(dim=-1, keepdim=True)
-    similarities = 100.0 * video_features @ text_features.T
-    _, best_photo_idx = similarities.topk(results_count, dim=0)
-
-    # frames numbers
-    search_results = best_photo_idx.cpu().numpy().tolist()
-
-    frames_result = [result for sub_list in search_results for result in sub_list]
-
-    results_in_ms = [
-        round(
-            frame * storage[video.id]["skip_frames"] / storage[video.id]["fps"] * 1000
-        )
-        for frame in frames_result
-    ]
-
-    return results_in_ms
-
-
+# Lightning Work is only responsible for spinning up the FastApi server
 class VideoProcessingServer(LightningWork):
     def run(self):
         uvicorn.run(app, host=self.host, port=self.port)
