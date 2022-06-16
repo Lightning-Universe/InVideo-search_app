@@ -1,5 +1,6 @@
 git+https://github.com/kaushikb11/pytube.git
-lightning-app --pre
+lightning-app
+lightning
 packaging==21.3
 fastapi[all]==0.78.0
 fsspec==2022.1.0
@@ -11,5 +12,4 @@ opencv-python-headless==4.5.5.64
 torch==1.11.0
 torchvision==0.12.0
 git+https://github.com/openai/CLIP.git
-humanfriendly==10.0
 pytorch-lightning==1.6.3

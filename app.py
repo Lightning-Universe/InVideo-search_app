@@ -2,7 +2,7 @@ import os
 import subprocess
 from pathlib import Path
 
-from lightning.app import LightningApp, LightningFlow, CloudCompute
+from lightning.app import CloudCompute, LightningApp, LightningFlow
 from lightning.app.frontend import StaticWebFrontend
 
 from video_search.server import VideoProcessingServer
@@ -28,12 +28,7 @@ class VideoAppFlow(LightningFlow):
     def __init__(self):
         super().__init__()
 
-        self.server = VideoProcessingServer(
-            parallel=True,
-            cloud_compute=CloudCompute(
-                os.getenv("LIGHTNING_SERVER_MACHINE", "cpu-medium")
-            ),
-        )
+        self.server = VideoProcessingServer(parallel=True)
         self.ui = ReactUI()
 
         self.api_server_url = None
