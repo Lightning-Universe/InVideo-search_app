@@ -67,14 +67,16 @@ def _process_video(video_id: str, video_url: str):
 
     batch_size = 256
     batches = math.ceil(len(frames) / batch_size)
-    video_features = torch.empty([0, 512], dtype=torch.float16)
     device = "cuda" if torch.cuda.is_available() else "cpu"
+    video_features = torch.empty([0, 512], dtype=torch.float16).to(device)
 
     # Load clip model
     model, preprocess = openai_clip.load("ViT-B/32", device=device)
     for i in range(batches):
         batch_frames = frames[i * batch_size : (i + 1) * batch_size]
-        batch_preprocessed = torch.stack([preprocess(frame) for frame in batch_frames])
+        batch_preprocessed = torch.stack(
+            [preprocess(frame) for frame in batch_frames]
+        ).to(device)
         with torch.no_grad():
             batch_features = model.encode_image(batch_preprocessed)
             batch_features /= batch_features.norm(dim=-1, keepdim=True)
@@ -82,7 +84,12 @@ def _process_video(video_id: str, video_url: str):
 
     # Save video features for future use in search
     storage.save(
-        video_id, {"video_features": video_features, "skip_frames": SKIP, "fps": fps,}
+        video_id,
+        {
+            "video_features": video_features,
+            "skip_frames": SKIP,
+            "fps": fps,
+        },
     )
     print(f"Video procssing finished ({video_url})")
 
