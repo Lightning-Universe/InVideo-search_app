@@ -8,7 +8,7 @@ import cv2
 import uvicorn
 from fastapi import BackgroundTasks, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from lightning import LightningWork
+from lightning.app import LightningWork
 from PIL import Image
 from pydantic import BaseModel
 from pytube import YouTube, extract
@@ -49,7 +49,9 @@ class VideoSearchResults(BaseModel):
 
 # We use simple in-memory LRU cache to store information about processed videos
 # This could be simillarly used to access any other database or storage
-videos: LRUCache[VideoProcessingStatus] = LRUCache(capacity=int(os.getenv("LIGHTNING_LRU_CAPACITY", "100")))
+videos: LRUCache[VideoProcessingStatus] = LRUCache(
+    capacity=int(os.getenv("LIGHTNING_LRU_CAPACITY", "100"))
+)
 
 # Becuase UI (React) calls server from browser we need to allow it with CORS policies
 app = FastAPI()
@@ -92,7 +94,7 @@ async def process_video(
         video.state = VideoProcessingState.Failure
         video.msg = str(error)
 
-    # Processing takes a while, so we schedule it to background task 
+    # Processing takes a while, so we schedule it to background task
     #   and return control to the user
     background_tasks.add_task(
         ml.process_video,
