@@ -1,6 +1,5 @@
 import io
 import os
-
 from enum import Enum
 from typing import List
 
@@ -14,9 +13,8 @@ from pydantic import BaseModel
 from pytube import YouTube, extract
 from starlette.responses import StreamingResponse
 
-from .storage import LRUCache
 from . import ml
-
+from .storage import LRUCache
 
 # ------------------ Models ------------------
 
@@ -56,7 +54,10 @@ videos: LRUCache[VideoProcessingStatus] = LRUCache(
 # Becuase UI (React) calls server from browser we need to allow it with CORS policies
 app = FastAPI()
 app.add_middleware(
-    CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"],
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 
@@ -79,7 +80,9 @@ async def process_video(
 
     # Create and save new Video entry
     video = VideoProcessingStatus(
-        id=video_id, url=submission.url, state=VideoProcessingState.Scheduled,
+        id=video_id,
+        url=submission.url,
+        state=VideoProcessingState.Scheduled,
     )
     videos.save(video.id, video)
 
@@ -134,7 +137,9 @@ async def search_video(
     return VideoSearchResults(id=video_id, search_query=search_query, results=results)
 
 
-@app.get("/thumbnail/{video_id}/{time_ms}",)
+@app.get(
+    "/thumbnail/{video_id}/{time_ms}",
+)
 async def get_image_at(video_id: str, time_ms: int):
     """Returns a still image from a video at given time."""
 
@@ -158,4 +163,6 @@ async def get_image_at(video_id: str, time_ms: int):
 # Lightning Work is only responsible for spinning up the FastApi server
 class VideoProcessingServer(LightningWork):
     def run(self):
-        uvicorn.run(app, host=self.host, port=self.port)
+        # TODO: Run the FastAPI server that's created in line 57
+        # Tip: the LightningWork has some useful properties to run the server :)
+        pass
