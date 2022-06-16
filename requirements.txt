@@ -1,5 +1,4 @@
 git+https://github.com/kaushikb11/pytube.git
-lightning-app
 lightning
 packaging==21.3
 fastapi[all]==0.78.0
