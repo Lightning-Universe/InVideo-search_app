@@ -5,3 +5,4 @@ pytest-cov>=3.0.0
 pytest-flake8>=1.1.1
 flake8>=4.0.1
 check-manifest>=0.48
+playwright==1.22.0
