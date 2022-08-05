@@ -9,7 +9,8 @@ import io
 import os
 from contextlib import redirect_stdout
 
-from lightning.testing.testing import LightningTestApp, application_testing
+import pytest
+from lightning.app.testing.testing import LightningTestApp, application_testing
 
 
 class LightningAppTestInt(LightningTestApp):
@@ -22,6 +23,7 @@ class LightningAppTestInt(LightningTestApp):
         return True
 
 
+@pytest.mark.skip
 def test_videosearch_app():
     cwd = os.getcwd()
     cwd = os.path.join(cwd, "app.py")
