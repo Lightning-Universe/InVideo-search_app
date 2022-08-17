@@ -188,13 +188,13 @@ def validate_app_functionalities(app_page: "Page") -> None:
     video_url_input_field.press("Enter")
 
     search_box_input = app_page.frame_locator("iframe").locator("#search-box")
-    search_box_input.wait_for(timeout=100 * 1000)
+    search_box_input.wait_for(timeout=150 * 1000)
     search_box_input.fill("cooking pizza")
     search_box_input.press("Enter")
     search_results_container = app_page.frame_locator("iframe").locator(
         ".MuiGrid-container"
     )
-    search_results_container.wait_for(timeout=100 * 1000)
+    search_results_container.wait_for(timeout=150 * 1000)
     sleep(5)
     search_results = app_page.frame_locator("iframe").locator(".MuiGrid-item")
     assert search_results.count() == 5
