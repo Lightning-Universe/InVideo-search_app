@@ -32,7 +32,7 @@ A smart video app that understands videos and makes it as searchable as the web.
 conda create --name video_search python=3.8
 conda activate video_search
 
-https://github.com/Lightning-AI/LAI-InVideo-search-App
+git clone https://github.com/Lightning-AI/LAI-InVideo-search-App
 cd video_search
 pip install -r requirements.txt
 pip install -e .
