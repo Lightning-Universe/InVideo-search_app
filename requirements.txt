@@ -2,7 +2,7 @@ git+https://github.com/kaushikb11/pytube.git
 lightning
 packaging==21.3
 fastapi[all]==0.78.0
-fsspec==2022.1.0
+fsspec[http]>=2021.05.0, !=2021.06.0, <2022.8.0
 py==1.11.0
 starsessions==1.2.3
 numpy==1.22.4
