@@ -6,7 +6,7 @@ from typing import List
 
 import cv2
 import uvicorn
-from fastapi import BackgroundTasks, FastAPI, HTTPException
+from fastapi import BackgroundTasks, FastAPI, HTTPException, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
 from lightning.app import LightningWork
 from PIL import Image
@@ -47,115 +47,110 @@ class VideoSearchResults(BaseModel):
 
 # ------------------- API -------------------
 
-# We use simple in-memory LRU cache to store information about processed videos
-# This could be simillarly used to access any other database or storage
-videos: LRUCache[VideoProcessingStatus] = LRUCache(
-    capacity=int(os.getenv("LIGHTNING_LRU_CAPACITY", "100"))
-)
+class VideoSearchAPI:
+    def __init__(self):
+        self.router = APIRouter()
+        # We use this endpoint to check if the server is available.
+        self.router.add_api_route("/ping", self.hello, methods=["GET"])
+        self.router.add_api_route("/video", self.process_video, methods=["POST"])
+        self.router.add_api_route("/video/{video_id}", self.get_video, methods=["GET"])
+        self.router.add_api_route("/search/{video_id}", self.search_video, methods=["GET"])
+        self.router.add_api_route("/thumbnail/{video_id}/{time_ms}", self.get_image_at, methods=["GET"])
+        # We use simple in-memory LRU cache to store information about processed videos
+        # This could be simillarly used to access any other database or storage
+        self.videos: LRUCache[VideoProcessingStatus] = LRUCache(
+            capacity=int(os.getenv("LIGHTNING_LRU_CAPACITY", "100"))
+        )
+        self.processor = ml.VideoProcessor()
 
-# Becuase UI (React) calls server from browser we need to allow it with CORS policies
-app = FastAPI()
-app.add_middleware(
-    CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"],
-)
+    def hello(self):
+        return "ping"
 
+    async def search_video(self, video_id: str, search_query: str, results_count: int = 5) -> VideoSearchResults:
+        """Search in a video using 'search_query'."""
 
-# We use this endpoint to check if the server is available.
-@app.get("/ping")
-async def hello():
-    return "pong"
+        # Assert that video processing finished
+        status = self.get_video(video_id)
+        if status.state != VideoProcessingState.Done:
+            raise ValueError("Video was not yet processed, please wait")
 
+        # Make search
+        results = self.processor.search_video(video_id, search_query, results_count)
 
-@app.post("/video")
-async def process_video(
-    submission: VideoSubmission, background_tasks: BackgroundTasks
-) -> VideoProcessingStatus:
-    """Submitted video will be processed and later available for search."""
+        return VideoSearchResults(id=video_id, search_query=search_query, results=results)
 
-    # Return status if video has already been submitted before
-    video_id = extract.video_id(submission.url)
-    if video_id in videos:
-        return videos.get(video_id)
+    async def get_image_at(self, video_id: str, time_ms: int):
+        """Returns a still image from a video at given time."""
 
-    # Create and save new Video entry
-    video = VideoProcessingStatus(
-        id=video_id, url=submission.url, state=VideoProcessingState.Scheduled,
-    )
-    videos.save(video.id, video)
+        video = self.get_video(video_id)
+        yt = YouTube(video.url)
+        streams = yt.streams.filter(
+            adaptive=True, subtype="mp4", resolution="360p", only_video=True
+        )
+        capture = cv2.VideoCapture(streams[0].url)
+        capture.set(cv2.CAP_PROP_POS_MSEC, time_ms)
+        ret, frame = capture.read()
+        # Handle strange behaviours when we read nothing.
+        result_image = Image.fromarray(frame[:, :, ::-1])
+        bytes_image = io.BytesIO()
+        result_image.save(bytes_image, format="PNG")
+        bytes_image.seek(0)
 
-    # Implement on_* hooks to update processing status
-    def on_start():
-        video.state = VideoProcessingState.Running
+        return StreamingResponse(bytes_image, media_type="image/png")
 
-    def on_end():
-        video.state = VideoProcessingState.Done
+    def get_video(self, video_id: str) -> VideoProcessingStatus:
+        """Returns current processing status of a video."""
 
-    def on_error(error):
-        video.state = VideoProcessingState.Failure
-        video.msg = str(error)
+        if video_id in self.videos:
+            return self.videos.get(video_id)
 
-    # Processing takes a while, so we schedule it to background task
-    #   and return control to the user
-    background_tasks.add_task(
-        ml.process_video,
-        video_id=video.id,
-        video_url=video.url,
-        on_start=on_start,
-        on_end=on_end,
-        on_error=on_error,
-    )
-    return video
+        raise HTTPException(status_code=404, detail="Video not found")
 
+    def process_video(self, submission: VideoSubmission, background_tasks: BackgroundTasks) -> VideoProcessingStatus:
+        """Submitted video will be processed and later available for search."""
 
-@app.get("/video/{video_id}")
-def get_video(video_id: str) -> VideoProcessingStatus:
-    """Returns current processing status of a video."""
+        # Return status if video has already been submitted before
+        video_id = extract.video_id(submission.url)
+        if video_id in self.videos:
+            return self.videos.get(video_id)
 
-    if video_id in videos:
-        return videos.get(video_id)
+        # Create and save new Video entry
+        video = VideoProcessingStatus(
+            id=video_id, url=submission.url, state=VideoProcessingState.Scheduled,
+        )
+        self.videos.save(video.id, video)
 
-    raise HTTPException(status_code=404, detail="Video not found")
+        # Implement on_* hooks to update processing status
+        def on_start():
+            video.state = VideoProcessingState.Running
 
+        def on_end():
+            video.state = VideoProcessingState.Done
 
-@app.get("/search/{video_id}")
-async def search_video(
-    video_id: str, search_query: str, results_count: int = 5
-) -> VideoSearchResults:
-    """Search in a video using 'search_query'."""
+        def on_error(error):
+            video.state = VideoProcessingState.Failure
+            video.msg = str(error)
 
-    # Assert that video processing finished
-    status = get_video(video_id)
-    if status.state != VideoProcessingState.Done:
-        raise ValueError("Video was not yet processed, please wait")
-
-    # Make search
-    results = ml.search_video(video_id, search_query, results_count)
-
-    return VideoSearchResults(id=video_id, search_query=search_query, results=results)
-
-
-@app.get("/thumbnail/{video_id}/{time_ms}",)
-async def get_image_at(video_id: str, time_ms: int):
-    """Returns a still image from a video at given time."""
-
-    video = get_video(video_id)
-    yt = YouTube(video.url)
-    streams = yt.streams.filter(
-        adaptive=True, subtype="mp4", resolution="360p", only_video=True
-    )
-    capture = cv2.VideoCapture(streams[0].url)
-    capture.set(cv2.CAP_PROP_POS_MSEC, time_ms)
-    ret, frame = capture.read()
-    # Handle strange behaviours when we read nothing.
-    result_image = Image.fromarray(frame[:, :, ::-1])
-    bytes_image = io.BytesIO()
-    result_image.save(bytes_image, format="PNG")
-    bytes_image.seek(0)
-
-    return StreamingResponse(bytes_image, media_type="image/png")
+        # Processing takes a while, so we schedule it to background task
+        #   and return control to the user
+        background_tasks.add_task(
+            self.processor.process_video,
+            video_id=video.id,
+            video_url=video.url,
+            on_start=on_start,
+            on_end=on_end,
+            on_error=on_error,
+        )
+        return video
 
 
 # Lightning Work is only responsible for spinning up the FastApi server
 class VideoProcessingServer(LightningWork):
     def run(self):
+        # Because UI (React) calls server from browser we need to allow it with CORS policies
+        app = FastAPI()
+        app.add_middleware(
+            CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"],
+        )
+        app.include_router(VideoSearchAPI().router)
         uvicorn.run(app, host=self.host, port=self.port)
