@@ -52,7 +52,7 @@ def get_gallery_app_page(app_name) -> Generator:
         """,
             [Config.id, Config.key, token],
         )
-        gallery_page.goto(f"{Config.url}/apps", timeout=6000, wait_until="load")
+        gallery_page.goto(f"{Config.url}/apps", wait_until="load")
 
         # Find the app in the gallery
         gallery_page.locator(f"text={app_name}").first.click()
