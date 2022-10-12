@@ -42,7 +42,9 @@ def get_gallery_app_page(app_name) -> Generator:
         gallery_page = context.new_page()
         res = requests.post(Config.url + "/v1/auth/login", data=json.dumps(payload))
         token = res.json()["token"]
-        gallery_page.goto(Config.url)
+        with open("config_url.txt", "w+") as config_url:
+            config_url.write("URL: " + Config.url + "\n")
+        gallery_page.goto(Config.url, wait_until="load")
         gallery_page.evaluate(
             """data => {
             window.localStorage.setItem('gridUserId', data[0]);
@@ -52,7 +54,7 @@ def get_gallery_app_page(app_name) -> Generator:
         """,
             [Config.id, Config.key, token],
         )
-        gallery_page.goto(f"{Config.url}/apps", timeout=0, wait_until="load")
+        gallery_page.goto(f"{Config.url}/apps", wait_until="load")
 
         # Find the app in the gallery
         gallery_page.locator(f"text={app_name}").first.click()
