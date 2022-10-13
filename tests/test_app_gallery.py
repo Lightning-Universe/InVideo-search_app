@@ -42,9 +42,7 @@ def get_gallery_app_page(app_name) -> Generator:
         gallery_page = context.new_page()
         res = requests.post(Config.url + "/v1/auth/login", data=json.dumps(payload))
         token = res.json()["token"]
-        with open("config_url.txt", "w+") as config_url:
-            config_url.write("URL: " + Config.url + "\n")
-        gallery_page.goto(Config.url, wait_until="load")
+        gallery_page.goto(Config.url)
         gallery_page.evaluate(
             """data => {
             window.localStorage.setItem('gridUserId', data[0]);
@@ -54,7 +52,19 @@ def get_gallery_app_page(app_name) -> Generator:
         """,
             [Config.id, Config.key, token],
         )
-        gallery_page.goto(f"{Config.url}/apps", wait_until="load")
+
+        retry_count = 0
+        MAX_RETRY_COUNT = 5
+        while True:
+            try:
+                gallery_page.goto(f"{Config.url}/apps")
+            except playwright._impl._api_types.TimeoutError as e:
+                if retry_count >= MAX_RETRY_COUNT:
+                    raise e
+                retry_count += 1
+                continue
+            else:
+                break
 
         # Find the app in the gallery
         gallery_page.locator(f"text={app_name}").first.click()
@@ -202,7 +212,7 @@ def validate_app_functionalities(app_page: "Page") -> None:
     search_results_container = app_page.frame_locator("iframe").locator(
         ".MuiGrid-container"
     )
-    search_results_container.wait_for(timeout=150 * 1000)
+    search_results_container.wait_for(timeout=180 * 1000)
     sleep(5)
     search_results = app_page.frame_locator("iframe").locator(".MuiGrid-item")
     assert search_results.count() == 5
