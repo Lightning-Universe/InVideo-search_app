@@ -180,7 +180,7 @@ def validate_app_functionalities(app_page: "Page") -> None:
             video_url_input_label = app_page.frame_locator("iframe").locator(
                 "text=Search inside any (5-minute) video"
             )
-            video_url_input_label.wait_for(timeout=30 * 1000)
+            video_url_input_label.wait_for(timeout=60 * 1000)
             break
         except (
             playwright._impl._api_types.Error,
