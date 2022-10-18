@@ -2,7 +2,7 @@ import os
 import subprocess
 from pathlib import Path
 
-from lightning.app import CloudCompute, LightningApp, LightningFlow
+from lightning.app import LightningApp, LightningFlow
 from lightning.app.frontend import StaticWebFrontend
 
 from video_search.server import VideoProcessingServer
