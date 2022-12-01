@@ -153,4 +153,4 @@ class VideoProcessingServer(LightningWork):
             CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"],
         )
         app.include_router(VideoSearchAPI().router)
-        uvicorn.run(app, host=self.host, port=self.port)
+        uvicorn.run(app, host=self.host, port=self.port, access_log=False)
