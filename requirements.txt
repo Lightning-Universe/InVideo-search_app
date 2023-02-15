@@ -5,7 +5,7 @@ fastapi[all]==0.88.0
 fsspec[http]>=2021.05.0, !=2021.06.0, <2022.8.0
 py==1.11.0
 starsessions==1.2.3
-numpy==1.22.4
+numpy==1.24.2
 Pillow==9.4.0
 opencv-python-headless==4.7.0.68
 torch==1.11.0
