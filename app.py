@@ -1,4 +1,3 @@
-import os
 import subprocess
 from pathlib import Path
 
@@ -14,9 +13,7 @@ class ReactUI(LightningFlow):
         self.server_url = ""
 
     def _build_static(self):
-        subprocess.call(
-            ["yarn", "--cwd", "./react_ui", "run", "build"]
-        )  # TODO: run build
+        subprocess.call(["yarn", "--cwd", "./react_ui", "run", "build"])  # TODO: run build
 
     def configure_layout(self):
         return StaticWebFrontend(Path(__file__).parent / "react_ui/dist")

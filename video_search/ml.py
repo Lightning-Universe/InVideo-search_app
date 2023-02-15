@@ -11,6 +11,7 @@ from .storage import LRUCache
 
 storage: LRUCache[dict] = LRUCache()
 
+
 class VideoProcessor:
     def __init__(self):
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -40,9 +41,7 @@ class VideoProcessor:
 
         yt = YouTube(video_url)
 
-        streams = yt.streams.filter(
-            adaptive=True, subtype="mp4", resolution="360p", only_video=True
-        )
+        streams = yt.streams.filter(adaptive=True, subtype="mp4", resolution="360p", only_video=True)
         length = yt.length
         if length >= 300:
             raise ValueError(
@@ -77,9 +76,7 @@ class VideoProcessor:
         # Load clip model
         for i in range(batches):
             batch_frames = frames[i * batch_size : (i + 1) * batch_size]
-            batch_preprocessed = torch.stack(
-                [self.preprocess(frame) for frame in batch_frames]
-            ).to(self.device)
+            batch_preprocessed = torch.stack([self.preprocess(frame) for frame in batch_frames]).to(self.device)
             with torch.no_grad():
                 batch_features = self.model.encode_image(batch_preprocessed)
                 batch_features /= batch_features.norm(dim=-1, keepdim=True)

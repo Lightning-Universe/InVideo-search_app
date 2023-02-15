@@ -219,12 +219,12 @@ const App = (props: any) => {
         {showError ?
           <Alert
             onClose={closeErrorAlert}
-            severity="error" 
+            severity="error"
             sx={{zIndex: 9999, position: 'absolute', top: 6, left: 6, maxWidth: "calc(100% - 43px)"}}
             >
               {errorMessage}
             </Alert>
-        :  
+        :
           <p/>
         }
 
@@ -232,7 +232,7 @@ const App = (props: any) => {
         <div className="content">
             <Stack justifyContent={"center"} alignItems={"center"}>
 
-          <p 
+          <p
           style={{
             color: "white",
             marginBottom: "10px"
@@ -344,4 +344,4 @@ const App = (props: any) => {
   );
 }
 
-export default App; 
+export default App;

@@ -1,5 +1,5 @@
-r"""
-To test a lightning app:
+r"""To test a lightning app:
+
 1. Use LightningTestApp which is a subclass of LightningApp.
 2. Subclass run_once in LightningTestApp.
 3. in run_once, come up with a way to verify the behavior you wanted.

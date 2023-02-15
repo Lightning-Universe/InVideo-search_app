@@ -9,9 +9,7 @@ _PATH_ROOT = os.path.dirname(__file__)
 
 
 def _load_py_module(fname, pkg="video_search"):
-    spec = spec_from_file_location(
-        os.path.join(pkg, fname), os.path.join(_PATH_ROOT, pkg, fname)
-    )
+    spec = spec_from_file_location(os.path.join(pkg, fname), os.path.join(_PATH_ROOT, pkg, fname))
     py = module_from_spec(spec)
     spec.loader.exec_module(py)
     return py
@@ -19,9 +17,7 @@ def _load_py_module(fname, pkg="video_search"):
 
 about = _load_py_module("__about__.py")
 setup_tools = _load_py_module("setup_tools.py")
-long_description = setup_tools._load_readme_description(
-    _PATH_ROOT, homepage=about.__homepage__, ver=about.__version__
-)
+long_description = setup_tools._load_readme_description(_PATH_ROOT, homepage=about.__homepage__, ver=about.__version__)
 
 # https://packaging.python.org/discussions/install-requires-vs-requirements /
 # keep the meta-data here for simplicity in reading this file... it's not obvious
