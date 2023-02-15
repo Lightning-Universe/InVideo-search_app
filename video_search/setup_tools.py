@@ -19,9 +19,7 @@ from typing import List
 _PROJECT_ROOT = os.path.dirname(os.path.dirname(__file__))
 
 
-def _load_requirements(
-    path_dir: str, file_name: str = "requirements.txt", comment_char: str = "#"
-) -> List[str]:
+def _load_requirements(path_dir: str, file_name: str = "requirements.txt", comment_char: str = "#") -> List[str]:
     """Load requirements from a file.
 
     >>> _load_requirements(_PROJECT_ROOT)  # doctest: +ELLIPSIS +NORMALIZE_WHITESPACE
@@ -73,9 +71,7 @@ def _load_readme_description(path_dir: str, homepage: str, ver: str) -> str:
         f"lightning-sandbox.readthedocs.io/en/{ver}",
     )
     # codecov badge
-    text = text.replace(
-        "/branch/master/graph/badge.svg", f"/release/{ver}/graph/badge.svg"
-    )
+    text = text.replace("/branch/master/graph/badge.svg", f"/release/{ver}/graph/badge.svg")
     # replace github badges for release ones
     text = text.replace("badge.svg?branch=master&event=push", f"badge.svg?tag={ver}")
 

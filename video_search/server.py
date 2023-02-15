@@ -1,12 +1,11 @@
 import io
 import os
-
 from enum import Enum
 from typing import List
 
 import cv2
 import uvicorn
-from fastapi import BackgroundTasks, FastAPI, HTTPException, APIRouter
+from fastapi import APIRouter, BackgroundTasks, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from lightning.app import LightningWork
 from PIL import Image
@@ -14,9 +13,8 @@ from pydantic import BaseModel
 from pytube import YouTube, extract
 from starlette.responses import StreamingResponse
 
-from .storage import LRUCache
 from . import ml
-
+from .storage import LRUCache
 
 # ------------------ Models ------------------
 
@@ -46,6 +44,7 @@ class VideoSearchResults(BaseModel):
 
 
 # ------------------- API -------------------
+
 
 class VideoSearchAPI:
     def __init__(self):
@@ -84,9 +83,7 @@ class VideoSearchAPI:
 
         video = self.get_video(video_id)
         yt = YouTube(video.url)
-        streams = yt.streams.filter(
-            adaptive=True, subtype="mp4", resolution="360p", only_video=True
-        )
+        streams = yt.streams.filter(adaptive=True, subtype="mp4", resolution="360p", only_video=True)
         capture = cv2.VideoCapture(streams[0].url)
         capture.set(cv2.CAP_PROP_POS_MSEC, time_ms)
         ret, frame = capture.read()
@@ -116,7 +113,9 @@ class VideoSearchAPI:
 
         # Create and save new Video entry
         video = VideoProcessingStatus(
-            id=video_id, url=submission.url, state=VideoProcessingState.Scheduled,
+            id=video_id,
+            url=submission.url,
+            state=VideoProcessingState.Scheduled,
         )
         self.videos.save(video.id, video)
 
@@ -150,7 +149,10 @@ class VideoProcessingServer(LightningWork):
         # Because UI (React) calls server from browser we need to allow it with CORS policies
         app = FastAPI()
         app.add_middleware(
-            CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"],
+            CORSMiddleware,
+            allow_origins=["*"],
+            allow_methods=["*"],
+            allow_headers=["*"],
         )
         app.include_router(VideoSearchAPI().router)
         uvicorn.run(app, host=self.host, port=self.port, access_log=False)
