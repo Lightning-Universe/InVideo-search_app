@@ -8,6 +8,10 @@ on:
   pull_request:
     branches: [main]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.head_ref }}
+  cancel-in-progress: ${{ ! (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/')) }}
+
 jobs:
   pytest:
 
@@ -31,7 +35,7 @@ jobs:
     - name: Install dependencies
       run: |
         pip --version
-        .pre-commit-config.yaml
+        pip install -e . -r tests/requirements.txt -U -q --find-links https://download.pytorch.org/whl/cpu/torch_stable.html
         pip list
       shell: bash
 
