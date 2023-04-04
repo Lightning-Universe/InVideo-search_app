@@ -27,7 +27,6 @@ class VideoProcessor:
         on_end: Callable,
         on_error: Callable,
     ):
-
         try:
             on_start()
             self._process_video(video_id, video_url)
