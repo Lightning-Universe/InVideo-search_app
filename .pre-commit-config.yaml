@@ -27,7 +27,7 @@ repos:
         args: [--py38-plus]
         name: Upgrade code
 
-  - repo: https://github.com/myint/docformatter
+  - repo: https://github.com/PyCQA/docformatter
     rev: v1.5.1
     hooks:
       - id: docformatter
@@ -39,7 +39,7 @@ repos:
       - id: isort
 
   - repo: https://github.com/psf/black
-    rev: 22.12.0
+    rev: 23.3.0
     hooks:
       - id: black
         name: Black code
@@ -55,7 +55,7 @@ repos:
           - mdformat_frontmatter
 
   - repo: https://github.com/charliermarsh/ruff-pre-commit
-    rev: v0.0.240
+    rev: v0.0.260
     hooks:
       - id: ruff
         args: ["--fix", "--line-length=120"]
