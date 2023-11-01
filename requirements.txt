@@ -6,7 +6,7 @@ fsspec[http]>=2021.05.0, !=2021.06.0, <2023.10.0
 py==1.11.0
 starsessions==1.2.3
 numpy==1.26.0
-Pillow==10.0.0
+Pillow==10.1.0
 opencv-python-headless==4.8.0.76
 torch==2.0.1
 torchvision==0.15.2
