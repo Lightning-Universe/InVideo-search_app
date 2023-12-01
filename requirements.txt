@@ -5,9 +5,9 @@ fastapi[all] ==0.103.2
 fsspec[http] >=2021.05.0, !=2021.06.0, <2023.11.0
 py ==1.11.0
 starsessions ==1.2.3
-numpy ==1.26.1
+numpy ==1.26.2
 Pillow ==10.1.0
 opencv-python-headless ==4.8.1.78
-torch ==2.1.0
+torch ==2.1.1
 torchvision ==0.16.1
 git+https://github.com/openai/CLIP.git
