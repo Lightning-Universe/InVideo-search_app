@@ -9,5 +9,5 @@ numpy ==1.26.2
 Pillow ==10.1.0
 opencv-python-headless ==4.9.0.80
 torch ==2.1.1
-torchvision ==0.16.1
+torchvision ==0.16.2
 git+https://github.com/openai/CLIP.git
