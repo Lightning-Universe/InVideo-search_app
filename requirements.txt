@@ -8,6 +8,6 @@ starsessions ==1.2.3
 numpy ==1.26.3
 Pillow ==10.2.0
 opencv-python-headless ==4.9.0.80
-torch ==2.1.2
+torch ==2.2.0
 torchvision ==0.17.0
 git+https://github.com/openai/CLIP.git
